@@ -21,7 +21,7 @@ jobs:  # Ensemble des jobs du pipeline
             - name: docker run container
               env:  # Variables globales reutilisables
                 PYTHONPATH: ${{env.PYTHONPATH}}  #
-              run: docker run -d --name fee-service -p 8000:8000 doordash/delivery-fee-service
+              run: docker run -d --name fee-service -p 8080:8080 doordash/delivery-fee-service
         
             - name: run test api endpoint /1
               run: |
@@ -34,7 +34,7 @@ jobs:  # Ensemble des jobs du pipeline
                   echo "Health check failed with status code: $status_code"
                   exit 1
                 fi
-                curl -i https://localhost:8080/ || exit 1
+                curl -i http://localhost:8080/ || exit 1
 
             - name: stop docker container
               run: docker stop fee-service
@@ -42,9 +42,9 @@ jobs:  # Ensemble des jobs du pipeline
 
     # - name: run test endpoints
     #     run: |
-    #     curl -f http://localhost:8000/ || exit 1
-    #     curl -f http://localhost:8000/health || exit 1
-    #     curl -f http://localhost:8000/calculate-fee?distance=5&demand=high
+    #     curl -f http://localhost:8080/ || exit 1
+    #     curl -f http://localhost:8080/health || exit 1
+    #     curl -f http://localhost:8080/calculate-fee?distance=5&demand=high
     #     - uses: actions/setup-python@v5
     #         with: { python-version: "${{ env.PYTHON_VERSION }}" }
     #     - run: pip install -r requirements.txt # Dependances
