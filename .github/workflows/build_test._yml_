@@ -1,0 +1,89 @@
+# =======================================================
+# Part II: Writing Real API Tests Using Pytest
+# =======================================================
+# In production teams, API tests are not written inside the CI workflow. 
+# They are written in pytest test files inside the repository, and the CI simply runs them.
+# Your mission for this second part is to:
+# 1. Create a tests/ Folder
+#   Inside your repository, create: tests/
+#     - test_health.py
+#     - test_fee_calculation.py
+#     - test_root.py
+#
+# 2. Write Pytest Tests for Each Endpoint
+#   You will write Python tests that call the API running in Docker.
+#
+#   Your test suite should validate:
+#       - Correct status codes
+#       - Correct JSON structure
+#       - Correct behavior for valid inputs
+#       - Correct behavior for invalid inputs (e.g., 400 errors)
+#
+#   Write one test file per endpoint to match real industry conventions.
+#
+# 3. Update Your GitHub Actions Workflow
+#   Your workflow must now:
+#       - Build the Docker image
+#       - Run the API container
+#       - Wait for it to start (sleep 5)
+#       - Install test dependencies: pip install pytest httpx
+#       - Run the tests: pytest -v
+#
+# This makes the pipeline fail automatically when a test fails — exactly how CI/CD operates in real MLOps systems.
+name: Part02-MLOps API Tests Pipeline  # Nom du workflow affiche dans l'onglet Actions
+on:  # Evenements qui declenchent le pipeline
+    push:  # A chaque push de commits...
+        branches: [ main, develop ]  # ...sur ces deux branches
+    pull_request:  # A chaque Pull Request...
+        branches: [ main ]           # ...ciblant la branche main
+env:  # Variables globales reutilisables
+    IMAGE: ghcr.io/org/ml-app  # Nom de l'image Docker cible
+    PYTHON_VERSION: "3.11"  # Version de Python du runner
+jobs:  # Ensemble des jobs du pipeline
+    build-test:  # Job 1 : build + tests + entrainement
+        runs-on: ubuntu-latest  # Machine virtuelle hebergee par GitHub
+
+        steps:  # Etapes executees sequentiellement
+            - name: checkout repository  # 
+              uses: actions/checkout@v4  # Clone le code du depot
+            
+            - name: docker build image
+              run: docker build -t doordash/delivery-fee-service .
+            
+            - name: docker run container
+              env:  # Variables globales reutilisables
+                PYTHONPATH: ${{env.PYTHONPATH}}  #
+              run: docker run -d --name fee-service -p 8080:8080 doordash/delivery-fee-service
+
+            - name: wait for service to be ready
+              run: |
+                echo "Waiting for service to be ready..."
+                for i in {1..30}; do
+                  if curl -sSf http://localhost:8080/ 2>/dev/null; then
+                    echo "Service is ready!"
+                    exit 0
+                  fi
+                  echo "Attempt $i/30 - Service not ready yet, waiting..."
+                  sleep 2
+                done
+                echo "Service failed to start"
+                docker logs fee-service
+                exit 1
+
+            - name: install test dependencies
+              run: pip install pytest httpx
+
+            - name: run pytest tests
+              run: pytest -v tests/
+            
+            - name: stop docker container
+              if: always()
+              run: docker stop fee-service
+            
+            - name: remove docker container
+              if: always()
+              run: docker rm fee-service
+            
+            - name: remove docker image
+              if: always()
+              run: docker rmi doordash/delivery-fee-service

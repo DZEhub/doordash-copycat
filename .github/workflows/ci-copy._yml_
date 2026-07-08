@@ -7,7 +7,7 @@
 #   - Run the container
 #   - Test all endpoints
 #   - Stop and clean the container afterward
-name: DZ-MLOps CI/CD Pipeline  # Nom du workflow affiche dans l'onglet Actions
+name: MLOps CI/CD Pipeline  # Nom du workflow affiche dans l'onglet Actions
 on:  # Evenements qui declenchent le pipeline
     push:  # A chaque push de commits...
         branches: [ main, develop ]  # ...sur ces deux branches
@@ -17,9 +17,6 @@ env:  # Variables globales reutilisables
     IMAGE: ghcr.io/org/ml-app  # Nom de l'image Docker cible
     PYTHON_VERSION: "3.11"  # Version de Python du runner
 jobs:  # Ensemble des jobs du pipeline
-    # =======================================================
-    # Part I: Smoke Tests: Write the CI Pipeline
-    # =======================================================
     smoke-tests:  # Job 1 : Smoke tests with curl
         runs-on: ubuntu-latest  # Machine virtuelle hebergee par GitHub
 
@@ -68,16 +65,7 @@ jobs:  # Ensemble des jobs du pipeline
 
             - name: stop docker container
               run: docker stop fee-service
-    
-    # =======================================================
-    # Part II: Writing Real API Tests Using Pytest
-    # =======================================================
-    #   Your workflow must now:
-    #       - Build the Docker image
-    #       - Run the API container
-    #       - Wait for it to start (sleep 5)
-    #       - Install test dependencies: pip install pytest httpx
-    #       - Run the tests: pytest -v
+
     unit-tests:  # Job 2 : Unit tests with pytest (runs after smoke-tests succeeds)
         needs: smoke-tests  # Wait for Job 1 to complete successfully
         runs-on: ubuntu-latest
@@ -122,3 +110,35 @@ jobs:  # Ensemble des jobs du pipeline
             - name: remove docker container
               if: always()
               run: docker rm fee-service
+
+
+    # - name: run test endpoints
+    #     run: |
+    #     curl -f http://localhost:8080/ || exit 1
+    #     curl -f http://localhost:8080/health || exit 1
+    #     curl -f http://localhost:8080/calculate-fee?distance=5&demand=high
+    #     - uses: actions/setup-python@v5
+    #         with: { python-version: "${{ env.PYTHON_VERSION }}" }
+    #     - run: pip install -r requirements.txt # Dependances
+    #     - run: flake8 app/ tests/    # Analyse statique (lint qualite)
+    #     - run: pytest --maxfail=1 -q  # Tests unitaires (arret au 1er echec)
+    #     - run: python app/train.py --min-score 0.85 # Entraine + seuil qualite
+    # deploy:                        # Job 2 : conteneurisation + deploiement
+    #     needs: build-test            # Ne demarre que si le job 1 a reussi
+    #     if: github.ref == 'refs/heads/main' # Deploie seulement depuis main
+    #     runs-on: ubuntu-latest       # Runner Ubuntu propre
+    #     permissions: { packages: write, contents: read }
+    #     steps:                       # Etapes de deploiement
+    #     - uses: actions/checkout@v4  # Recupere le code
+    #     - uses: docker/login-action@v3 # Connexion au registry
+    #         with: { registry: ghcr.io, username: ${{ github.actor }},
+    #                 password: ${{ secrets.GITHUB_TOKEN }} }
+    #     - run: docker build -t $IMAGE:${{ github.sha }} .
+    #                                     # Construit l'image, taguee par le SHA du commit
+    #     - run: docker push $IMAGE:${{ github.sha }}
+    #                                     # Publie l'image dans le registry (GHCR)
+    #     - run: python app/register_model.py # Enregistre le modele dans MLflow
+    #     - run: kubectl set image deploy/ml-app \
+    #         app=$IMAGE:${{ github.sha }}  # Deploie sur Kubernetes (rolling update)
+    #     - run: python app/smoke_test.py --url $PROD_URL
+    #                                     # Verifie la sante en production (monitoring)
