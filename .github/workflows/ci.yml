@@ -22,6 +22,25 @@ jobs:  # Ensemble des jobs du pipeline
               env:  # Variables globales reutilisables
                 PYTHONPATH: ${{env.PYTHONPATH}}  #
               run: docker run -d --name fee-service -p 8080:8080 doordash/delivery-fee-service
+            - name: check docker container status
+              if: always()
+              run: |
+                    docker ps -a
+                    docker logs fee-service
+            - name: wait for service to be ready
+              run: |
+                echo "Waiting for service to be ready..."
+                for i in {1..30}; do
+                  if curl -sSf http://localhost:8080/ 2>/dev/null; then
+                    echo "Service is ready!"
+                    exit 0
+                  fi
+                  echo "Attempt $i/30 - Service not ready yet, waiting..."
+                  sleep 2
+                done
+                echo "Service failed to start"
+                docker logs fee-service
+                exit 1
         
             - name: run test api endpoint /1
               run: |
