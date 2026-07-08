@@ -48,12 +48,9 @@ jobs:  # Ensemble des jobs du pipeline
 
             - name: run test api endpoint /2
               run: |
-                status_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health)
-                if [ "$status_code" -ne 200 ]; then
-                  echo "Health check failed with status code: $status_code"
-                  exit 1
-                fi
-                curl -i http://localhost:8080/ || exit 1
+                curl -sSf -X POST http://localhost:8080/calculate-fee/ \
+                  -H "Content-Type: application/json" \
+                  -d '{"distance_km": 5, "weight_kg": 2}' || exit 1
 
             - name: stop docker container
               run: docker stop fee-service
