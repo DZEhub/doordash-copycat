@@ -1,0 +1,72 @@
+name: DZ-MLOps CI/CD Pipeline  # Nom du workflow affiche dans l'onglet Actions
+on:  # Evenements qui declenchent le pipeline
+    push:  # A chaque push de commits...
+        branches: [ main, develop ]  # ...sur ces deux branches
+    pull_request:  # A chaque Pull Request...
+        branches: [ main ]           # ...ciblant la branche main
+env:  # Variables globales reutilisables
+    IMAGE: ghcr.io/org/ml-app  # Nom de l'image Docker cible
+    PYTHON_VERSION: "3.11"  # Version de Python du runner
+jobs:  # Ensemble des jobs du pipeline
+    build-test:  # Job 1 : build + tests + entrainement
+        runs-on: ubuntu-latest  # Machine virtuelle hebergee par GitHub
+
+        steps:  # Etapes executees sequentiellement
+            - name: checkout repository  # 
+              uses: actions/checkout@v4  # Clone le code du depot
+            
+            - name: docker build image
+              run: docker build -t doordash/delivery-fee-service .
+            
+            - name: docker run container
+              env:  # Variables globales reutilisables
+                PYTHONPATH: ${{env.PYTHONPATH}}  #
+              run: docker run -d --name fee-service -p 8000:8000 doordash/delivery-fee-service
+        
+            - name: run test api endpoint /1
+              run: |
+                curl -sSf http://localhost:8080/ || exit 1
+
+            - name: run test api endpoint /2
+              run: |
+                status_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health)
+                if [ "$status_code" -ne 200 ]; then
+                  echo "Health check failed with status code: $status_code"
+                  exit 1
+                fi
+                curl -i https://localhost:8080/ || exit 1
+
+            - name: stop docker container
+              run: docker stop fee-service
+
+
+    # - name: run test endpoints
+    #     run: |
+    #     curl -f http://localhost:8000/ || exit 1
+    #     curl -f http://localhost:8000/health || exit 1
+    #     curl -f http://localhost:8000/calculate-fee?distance=5&demand=high
+    #     - uses: actions/setup-python@v5
+    #         with: { python-version: "${{ env.PYTHON_VERSION }}" }
+    #     - run: pip install -r requirements.txt # Dependances
+    #     - run: flake8 app/ tests/    # Analyse statique (lint qualite)
+    #     - run: pytest --maxfail=1 -q  # Tests unitaires (arret au 1er echec)
+    #     - run: python app/train.py --min-score 0.85 # Entraine + seuil qualite
+    # deploy:                        # Job 2 : conteneurisation + deploiement
+    #     needs: build-test            # Ne demarre que si le job 1 a reussi
+    #     if: github.ref == 'refs/heads/main' # Deploie seulement depuis main
+    #     runs-on: ubuntu-latest       # Runner Ubuntu propre
+    #     permissions: { packages: write, contents: read }
+    #     steps:                       # Etapes de deploiement
+    #     - uses: actions/checkout@v4  # Recupere le code
+    #     - uses: docker/login-action@v3 # Connexion au registry
+    #         with: { registry: ghcr.io, username: ${{ github.actor }},
+    #                 password: ${{ secrets.GITHUB_TOKEN }} }
+    #     - run: docker build -t $IMAGE:${{ github.sha }} .
+    #                                     # Construit l'image, taguee par le SHA du commit
+    #     - run: docker push $IMAGE:${{ github.sha }}
+    #                                     # Publie l'image dans le registry (GHCR)
+    #     - run: python app/register_model.py # Enregistre le modele dans MLflow
+    #     - run: kubectl set image deploy/ml-app \
+    #         app=$IMAGE:${{ github.sha }}  # Deploie sur Kubernetes (rolling update)
+    #     - run: python app/smoke_test.py --url $PROD_URL
+    #                                     # Verifie la sante en production (monitoring)
