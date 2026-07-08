@@ -23,5 +23,5 @@ def test_estimate_time():
     distance_km = 5
     response = httpx.get(f"http://localhost:8080/estimate-time/{distance_km}")
     assert response.status_code == 200
-    assert "estimated_time" in response.json()
+    assert "estimated_delivery_time_minutes" in response.json()  # Fixed key name
     # pass
